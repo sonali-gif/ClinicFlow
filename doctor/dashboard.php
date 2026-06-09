@@ -28,34 +28,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_medical_info'])) 
     $p_id = $_POST['patient_id'];
     $prescription = $_POST['prescription'];
     $tests = $_POST['tests'];
+    $diagnosis = $_POST['diagnosis'] ?? '';
 
-    // File Upload Handling
-    $upload_dir = "../uploads/";
-    $prescription_file = null;
-    $test_file = null;
+    // Merge diagnosis into prescription JSON if it's a valid JSON
+    $prescription_data = json_decode($prescription, true);
+    if (is_array($prescription_data)) {
+        // Save just the medicine names for the pharmacist
+        $medicine_items = [];
+        foreach ($prescription_data as $med) {
+            if (isset($med['name'])) {
+                $medicine_items[] = $med['name'];
+            }
+        }
+        $medicine_items_str = implode("\n", $medicine_items);
 
-    // Fetch existing file names in case they are not updated
-    $stmt_fetch = $conn->prepare("SELECT prescription_file, test_file FROM patients WHERE id = ?");
-    $stmt_fetch->execute([$p_id]);
-    $current_files = $stmt_fetch->fetch();
-
-    if (!empty($_FILES['prescription_file']['name'])) {
-        $prescription_file = time() . "_p_" . basename($_FILES['prescription_file']['name']);
-        move_uploaded_file($_FILES['prescription_file']['tmp_name'], $upload_dir . $prescription_file);
+        $prescription_data = ['diagnosis' => $diagnosis, 'medicines' => $prescription_data];
+        $prescription = json_encode($prescription_data);
     } else {
-        $prescription_file = $current_files['prescription_file'];
+        $medicine_items_str = '';
     }
 
-    if (!empty($_FILES['test_file']['name'])) {
-        $test_file = time() . "_t_" . basename($_FILES['test_file']['name']);
-        move_uploaded_file($_FILES['test_file']['tmp_name'], $upload_dir . $test_file);
-    } else {
-        $test_file = $current_files['test_file'];
-    }
-
-    $stmt = $conn->prepare("UPDATE patients SET prescription = ?, tests = ?, prescription_file = ?, test_file = ? WHERE id = ? AND assigned_doctor_id = ?");
-    if ($stmt->execute([$prescription, $tests, $prescription_file, $test_file, $p_id, $doctor_id])) {
-        $success = "Medical info and files saved successfully!";
+    $stmt = $conn->prepare("UPDATE patients SET prescription = ?, medicine_items = ?, tests = ? WHERE id = ? AND assigned_doctor_id = ?");
+    if ($stmt->execute([$prescription, $medicine_items_str, $tests, $p_id, $doctor_id])) {
+        $success = "Medical information saved successfully!";
     } else {
         $error = "Failed to save medical info.";
     }
@@ -69,28 +64,47 @@ $patients = $stmt->fetchAll();
 include '../includes/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="row">
-        <!-- Sidebar -->
-        <nav class="col-md-2 d-none d-md-block sidebar" style="background: #198754;">
-            <div class="p-3">
-                <h4>ClinicFlow</h4>
-                <p class="small text-muted">Doctor Panel</p>
-            </div>
-            <ul class="nav flex-column">
-                <li class="nav-item"><a href="dashboard.php" class="nav-link active"><i class="fas fa-list me-2"></i> My Patients</a></li>
-                <li class="nav-item mt-4"><a href="logout.php" class="nav-link text-danger"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
-            </ul>
-        </nav>
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <div class="icon-badge shadow-sm" style="width: 40px; height: 40px; border-radius: 10px; background: #24a148; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+            <i class="fas fa-user-md"></i>
+        </div>
+        <h4>Doctor Portal</h4>
+    </div>
+    <div class="p-3">
+        <p class="small text-uppercase fw-bold text-muted mb-2 px-3" style="font-size: 0.7rem;">Main Menu</p>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a href="../index.php" class="nav-link"><i class="fas fa-home"></i> Home</a></li>
+            <li class="nav-item"><a href="dashboard.php" class="nav-link active"><i class="fas fa-list"></i> My Patients</a></li>
+        </ul>
+        <p class="small text-uppercase fw-bold text-muted mt-4 mb-2 px-3" style="font-size: 0.7rem;">System</p>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a href="logout.php" class="nav-link text-danger"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </div>
+</nav>
 
-        <!-- Main Content -->
-        <main class="col-md-10 main-content">
-            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2">My Assigned Patients</h1>
-                <div class="btn-toolbar mb-2 mb-md-0">
-                    <span class="badge bg-success">Welcome, <?php echo $_SESSION['doctor_name']; ?></span>
-                </div>
+<!-- Main Content -->
+<main class="main-content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">New Prescription</h2>
+            <p class="text-muted mb-0">Create and manage patient prescriptions.</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <?php if (defined('TEST_SESSION_BYPASS') && TEST_SESSION_BYPASS): ?>
+                <div class="badge bg-warning text-dark me-2">Test Mode Active</div>
+            <?php endif; ?>
+            <div class="text-end">
+                <p class="small fw-bold mb-0"><?php echo $_SESSION['doctor_name']; ?></p>
+                <p class="small text-muted mb-0">Logged in ID: <?php echo $_SESSION['doctor_id']; ?></p>
             </div>
+            <div class="icon-badge shadow-sm" style="width: 48px; height: 48px; background: #e5f6ed; color: #24a148; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                <i class="fas fa-user-md"></i>
+            </div>
+        </div>
+    </div>
 
             <?php if ($success): ?>
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -99,100 +113,192 @@ include '../includes/header.php';
                 </div>
             <?php endif; ?>
 
-            <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">List of Assigned Patients</h5>
-                    <span class="badge bg-success">Total: <?php echo count($patients); ?></span>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover align-middle">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Patient ID</th>
-                                    <th>Patient Name</th>
-                                    <th>Age/Gender</th>
-                                    <th>Symptoms</th>
-                                    <th>Medical Info</th>
-                                    <th>Status</th>
-                                    <th>Arrival Time</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (count($patients) > 0): ?>
-                                    <?php foreach ($patients as $p): ?>
-                                        <tr>
-                                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($p['patient_id']); ?></span></td>
-                                            <td><strong><?php echo htmlspecialchars($p['name']); ?></strong></td>
-                                            <td><?php echo $p['age']; ?> / <?php echo $p['gender']; ?></td>
-                                            <td><?php echo htmlspecialchars($p['symptoms']); ?></td>
-                                            <td>
-                                                <form method="POST" enctype="multipart/form-data" class="mb-0">
-                                                    <input type="hidden" name="patient_id" value="<?php echo $p['id']; ?>">
-                                                    <div class="mb-2">
-                                                        <textarea name="prescription" class="form-control form-control-sm mb-1" placeholder="Prescription" rows="2"><?php echo htmlspecialchars($p['prescription']); ?></textarea>
-                                                        <div class="input-group input-group-sm">
-                                                            <span class="input-group-text small">File:</span>
-                                                            <input type="file" name="prescription_file" class="form-control form-control-sm">
-                                                        </div>
-                                                        <?php if (!empty($p['prescription_file'])): ?>
-                                                            <div class="mt-1 small">
-                                                                <a href="../uploads/<?php echo $p['prescription_file']; ?>" target="_blank" class="text-decoration-none">
-                                                                    <i class="fas fa-file-pdf text-danger me-1"></i> View Prescription
-                                                                </a>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <div class="mb-2">
-                                                        <input type="text" name="tests" class="form-control form-control-sm mb-1" placeholder="Tests to be taken" value="<?php echo htmlspecialchars($p['tests']); ?>">
-                                                        <div class="input-group input-group-sm">
-                                                            <span class="input-group-text small">File:</span>
-                                                            <input type="file" name="test_file" class="form-control form-control-sm">
-                                                        </div>
-                                                        <?php if (!empty($p['test_file'])): ?>
-                                                            <div class="mt-1 small">
-                                                                <a href="../uploads/<?php echo $p['test_file']; ?>" target="_blank" class="text-decoration-none">
-                                                                    <i class="fas fa-microscope text-info me-1"></i> View Test Report
-                                                                </a>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <button type="submit" name="save_medical_info" class="btn btn-sm btn-outline-success w-100 mt-1">
-                                                        <i class="fas fa-save me-1"></i> Save Medical Info
-                                                    </button>
-                                                </form>
-                                            </td>
-                                            <td>
-                                                <span class="badge <?php 
-                                                    echo $p['status'] == 'Pending' ? 'bg-warning text-dark' : ($p['status'] == 'In Progress' ? 'bg-primary' : 'bg-success'); 
-                                                ?>">
-                                                    <?php echo $p['status']; ?>
-                                                </span>
-                                            </td>
-                                            <td><small class="text-muted"><?php echo date('H:i d M', strtotime($p['created_at'])); ?></small></td>
-                                            <td>
-                                                <?php if ($p['status'] == 'Pending'): ?>
-                                                    <a href="dashboard.php?progress_id=<?php echo $p['id']; ?>" class="btn btn-sm btn-primary w-100 mb-1">Start</a>
-                                                <?php elseif ($p['status'] == 'In Progress'): ?>
-                                                    <a href="dashboard.php?complete_id=<?php echo $p['id']; ?>" class="btn btn-sm btn-success w-100 mb-1">Complete</a>
-                                                <?php endif; ?>
-                                                <a href="logout.php" class="btn btn-sm btn-outline-danger w-100" style="display:none;">Logout</a>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <tr>
-                                        <td colspan="8" class="text-center py-4">No patients assigned to you yet.</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+            <?php 
+            $in_progress_count = 0;
+            foreach ($patients as $p): 
+                if ($p['status'] == 'In Progress'): 
+                    $in_progress_count++;
+            ?>
+                    <form method="POST" class="prescription-form mb-5 p-4 rounded-4 border">
+                        <input type="hidden" name="patient_id" value="<?php echo $p['id']; ?>">
+                        
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label">Patient</label>
+                                <input type="text" class="form-control bg-light" value="<?php echo htmlspecialchars($p['name']); ?> (<?php echo $p['patient_id']; ?>)" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Doctor</label>
+                                <input type="text" class="form-control bg-light" value="<?php echo $_SESSION['doctor_name']; ?>" readonly>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Date</label>
+                                <input type="text" class="form-control bg-light" value="<?php echo date('d-m-Y'); ?>" readonly>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Diagnosis</label>
+                            <input type="text" name="diagnosis" id="diagnosis-<?php echo $p['id']; ?>" class="form-control" placeholder="e.g. Viral Fever" required>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                Medicines
+                                <button type="button" class="btn btn-sm btn-outline-primary py-1 add-medicine-btn" data-patient-id="<?php echo $p['id']; ?>">
+                                    <i class="fas fa-plus me-1"></i> Add Medicine
+                                </button>
+                            </label>
+                            <div id="medicine-entries-container-<?php echo $p['id']; ?>" class="mb-3">
+                                <!-- Medicine entries added here -->
+                            </div>
+                            <input type="hidden" name="prescription" id="prescription-input-<?php echo $p['id']; ?>">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">Laboratory Tests</label>
+                            <input type="text" name="tests" class="form-control" placeholder="e.g. CBC, Blood Sugar, X-Ray" value="<?php echo htmlspecialchars($p['tests']); ?>">
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="save_medical_info" class="btn btn-primary px-4">Save Medical Info</button>
+                            <a href="dashboard.php?complete_id=<?php echo $p['id']; ?>" class="btn btn-success px-4">Complete Visit</a>
+                            <button type="reset" class="btn btn-light border px-4">Reset</button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+            <?php endforeach; ?>
+
+            <?php if ($in_progress_count == 0): ?>
+                <div class="text-center py-5 border rounded-4 mb-5 bg-light">
+                    <div class="icon-badge mx-auto mb-3 shadow-sm" style="width: 64px; height: 64px; background: #ffffff; color: #64748b; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
+                        <i class="fas fa-stethoscope"></i>
                     </div>
+                    <h5 class="fw-bold text-dark">No Active Consultations</h5>
+                    <p class="text-muted px-4">Select a patient from the <b>Pending Consultations</b> list below to start writing a prescription.</p>
                 </div>
+            <?php endif; ?>
+
+            <div class="table-responsive mt-4">
+                <h5 class="fw-bold mb-3">Pending Consultations</h5>
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Patient Detail</th>
+                            <th>Symptoms</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $pending_count = 0;
+                        foreach ($patients as $p): 
+                            if ($p['status'] == 'Pending'): 
+                                $pending_count++;
+                        ?>
+                                <tr>
+                                    <td>
+                                        <div class="fw-600"><?php echo htmlspecialchars($p['name']); ?></div>
+                                        <div class="small text-muted"><?php echo $p['patient_id']; ?></div>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($p['symptoms']); ?></td>
+                                    <td><span class="badge" style="background: #fff9e6; color: #856404;">Pending</span></td>
+                                    <td>
+                                        <a href="dashboard.php?progress_id=<?php echo $p['id']; ?>" class="btn btn-sm btn-primary px-3">Start Consultation</a>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        
+                        <?php if ($pending_count == 0): ?>
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    <i class="fas fa-info-circle me-1"></i> No pending consultations for you.
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
+        </div>
+    </div>
         </main>
     </div>
 </div>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.add-medicine-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const patientId = this.dataset.patientId;
+                addMedicineEntry(patientId);
+            });
+        });
+
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function() {
+                const patientId = this.querySelector('input[name="patient_id"]').value;
+                serializeMedicineData(patientId);
+            });
+        });
+
+        // Initialize existing prescriptions
+        <?php foreach ($patients as $p): ?>
+            <?php if (!empty($p['prescription'])): ?>
+                try {
+                    const data = JSON.parse(<?php echo json_encode($p['prescription']); ?>);
+                    
+                    // Handle new structured format
+                    if (data.diagnosis && data.medicines) {
+                        document.getElementById('diagnosis-<?php echo $p['id']; ?>').value = data.diagnosis;
+                        data.medicines.forEach(medicine => {
+                            addMedicineEntry(<?php echo $p['id']; ?>, medicine);
+                        });
+                    } 
+                    // Handle old array-only format
+                    else if (Array.isArray(data)) {
+                        data.forEach(medicine => {
+                            addMedicineEntry(<?php echo $p['id']; ?>, medicine);
+                        });
+                    }
+                } catch (e) {
+                    console.error("Error parsing prescription for patient <?php echo $p['id']; ?>:", e);
+                }
+            <?php endif; ?>
+        <?php endforeach; ?>
+    });
+
+    function addMedicineEntry(patientId, medicine = {}) {
+        const container = document.getElementById(`medicine-entries-container-${patientId}`);
+        const entryDiv = document.createElement('div');
+        entryDiv.classList.add('input-group', 'input-group-sm', 'mb-1', 'medicine-entry');
+        entryDiv.innerHTML = `
+            <input type="text" class="form-control medicine-name" placeholder="Medicine" value="${medicine.name || ''}">
+            <input type="text" class="form-control medicine-dosage" placeholder="Dose" value="${medicine.dosage || ''}">
+            <input type="text" class="form-control medicine-frequency" placeholder="Freq" value="${medicine.frequency || ''}">
+            <button type="button" class="btn btn-outline-danger remove-medicine-btn"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(entryDiv);
+
+        entryDiv.querySelector('.remove-medicine-btn').addEventListener('click', function() {
+            entryDiv.remove();
+        });
+    }
+
+    function serializeMedicineData(patientId) {
+        const medicineEntries = [];
+        document.querySelectorAll(`#medicine-entries-container-${patientId} .medicine-entry`).forEach(entryDiv => {
+            const name = entryDiv.querySelector('.medicine-name').value;
+            const dosage = entryDiv.querySelector('.medicine-dosage').value;
+            const frequency = entryDiv.querySelector('.medicine-frequency').value;
+            if (name) { // Only add if medicine name is provided
+                medicineEntries.push({ name, dosage, frequency });
+            }
+        });
+        document.getElementById(`prescription-input-${patientId}`).value = JSON.stringify(medicineEntries);
+    }
+</script>
 <?php include '../includes/footer.php'; ?>

@@ -54,9 +54,12 @@ CREATE TABLE IF NOT EXISTS patients (
     status ENUM('Pending', 'In Progress', 'Completed') DEFAULT 'Pending',
     next_appointment DATE,
     prescription TEXT,
+    medicine_items TEXT,
     tests TEXT,
     prescription_file VARCHAR(255),
     test_file VARCHAR(255),
+    medicine_bill TEXT,
+    test_bill TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (assigned_doctor_id) REFERENCES doctors(id) ON DELETE SET NULL
 );

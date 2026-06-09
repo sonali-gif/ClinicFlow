@@ -17,140 +17,185 @@ $total_patients = count($patients);
 $pending_count = 0;
 $in_progress_count = 0;
 $completed_count = 0;
+$prescription_count = 0;
 
 foreach ($patients as $p) {
     if ($p['status'] == 'Pending') $pending_count++;
     elseif ($p['status'] == 'In Progress') $in_progress_count++;
     elseif ($p['status'] == 'Completed') $completed_count++;
+    
+    if (!empty($p['prescription']) || !empty($p['prescription_file'])) {
+        $prescription_count++;
+    }
 }
+
+// Fetch actual doctor count
+$total_doctors = $conn->query("SELECT COUNT(*) FROM doctors")->fetchColumn();
 
 include '../includes/header.php';
 ?>
 
-<div class="container-fluid">
-    <div class="row">
-        <!-- Sidebar -->
-        <nav class="col-md-2 d-none d-md-block sidebar" style="background: #212529;">
-            <div class="p-3 text-white">
-                <h4>ClinicFlow</h4>
-                <p class="small opacity-75">Admin Panel</p>
-            </div>
-            <ul class="nav flex-column">
-                <li class="nav-item"><a href="dashboard.php" class="nav-link active text-white"><i class="fas fa-eye me-2"></i> All Patients</a></li>
-                <li class="nav-item mt-4"><a href="logout.php" class="nav-link text-danger"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
-            </ul>
-        </nav>
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <div class="icon-badge shadow-sm" style="width: 40px; height: 40px; border-radius: 10px; background: #161616; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+            <i class="fas fa-user-shield"></i>
+        </div>
+        <h4>Admin Panel</h4>
+    </div>
+    <div class="p-3">
+        <p class="small text-uppercase fw-bold text-muted mb-2 px-3" style="font-size: 0.7rem;">Main Menu</p>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a href="../index.php" class="nav-link"><i class="fas fa-home"></i> Home</a></li>
+            <li class="nav-item"><a href="dashboard.php" class="nav-link active"><i class="fas fa-chart-line"></i> Oversight</a></li>
+        </ul>
+        <p class="small text-uppercase fw-bold text-muted mt-4 mb-2 px-3" style="font-size: 0.7rem;">System</p>
+        <ul class="nav flex-column">
+            <li class="nav-item"><a href="logout.php" class="nav-link text-danger"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+        </ul>
+    </div>
+</nav>
 
-        <!-- Main Content -->
-        <main class="col-md-10 main-content">
-            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                <h1 class="h2">Admin Oversight Dashboard</h1>
-                <div class="btn-toolbar mb-2 mb-md-0">
-                    <span class="badge bg-dark p-2">Welcome, <?php echo $_SESSION['admin_name']; ?></span>
-                </div>
+<!-- Main Content -->
+<main class="main-content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">System Oversight</h2>
+            <p class="text-muted mb-0">Monitor hospital operations and patient flow in real-time.</p>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="text-end">
+                <p class="small fw-bold mb-0"><?php echo $_SESSION['admin_name']; ?></p>
+                <p class="small text-muted mb-0">System Administrator</p>
             </div>
+            <div class="icon-badge" style="width: 48px; height: 48px; background: #f4f4f4; color: #161616; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+        </div>
+    </div>
 
             <!-- Stats Row -->
-            <div class="row mb-4">
+            <div class="row g-4 mb-4">
                 <div class="col-md-3">
-                    <div class="card bg-primary text-white shadow-sm">
-                        <div class="card-body py-4">
-                            <h6>Total Patients</h6>
+                    <div class="card stat-card">
+                        <div class="stat-icon icon-blue">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
                             <h3><?php echo $total_patients; ?></h3>
+                            <p>Total Patients</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card bg-warning text-dark shadow-sm">
-                        <div class="card-body py-4">
-                            <h6>Pending</h6>
-                            <h3><?php echo $pending_count; ?></h3>
+                    <div class="card stat-card">
+                        <div class="stat-icon icon-green">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $pending_count + $in_progress_count; ?></h3>
+                            <p>Active Cases</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card bg-info text-white shadow-sm">
-                        <div class="card-body py-4">
-                            <h6>In Progress</h6>
-                            <h3><?php echo $in_progress_count; ?></h3>
+                    <div class="card stat-card">
+                        <div class="stat-icon icon-purple">
+                            <i class="fas fa-user-md"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $total_doctors; ?></h3>
+                            <p>Total Doctors</p>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card bg-success text-white shadow-sm">
-                        <div class="card-body py-4">
-                            <h6>Completed</h6>
-                            <h3><?php echo $completed_count; ?></h3>
+                    <div class="card stat-card">
+                        <div class="stat-icon icon-red">
+                            <i class="fas fa-file-prescription"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $prescription_count; ?></h3>
+                            <p>Prescriptions</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">All Patient Process & Details</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover align-middle">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Patient Detail</th>
-                                    <th>Doctor</th>
-                                    <th>Symptoms</th>
-                                    <th>Medical Info</th>
-                                    <th>Status</th>
-                                    <th>Next Appointment</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if ($total_patients > 0): ?>
-                                    <?php foreach ($patients as $p): ?>
+            <div class="row g-4">
+                <!-- Upcoming Appointments Table -->
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold">Upcoming Appointments</h5>
+                            <a href="#" class="btn btn-sm btn-light border small px-3">View All</a>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead>
                                         <tr>
-                                            <td><span class="badge bg-secondary"><?php echo htmlspecialchars($p['patient_id']); ?></span></td>
-                                            <td>
-                                                <strong><?php echo htmlspecialchars($p['name']); ?></strong><br>
-                                                <small class="text-muted"><?php echo $p['age']; ?>y / <?php echo $p['gender']; ?></small>
-                                            </td>
-                                            <td><span class="text-primary"><?php echo htmlspecialchars($p['doctor_name']); ?></span></td>
-                                            <td><small><?php echo htmlspecialchars($p['symptoms']); ?></small></td>
-                                            <td>
-                                                <?php if ($p['prescription'] || $p['tests']): ?>
-                                                    <div class="small">
-                                                        <strong>P:</strong> <?php echo mb_strimwidth(htmlspecialchars($p['prescription']), 0, 50, "..."); ?><br>
-                                                        <strong>T:</strong> <?php echo mb_strimwidth(htmlspecialchars($p['tests']), 0, 50, "..."); ?>
-                                                    </div>
-                                                <?php else: ?>
-                                                    <span class="text-muted small">None</span>
-                                                <?php endif; ?>
-                                                
-                                                <div class="mt-1">
-                                                    <?php if ($p['prescription_file']): ?>
-                                                        <a href="../uploads/<?php echo $p['prescription_file']; ?>" target="_blank" title="View Prescription File"><i class="fas fa-file-pdf text-danger me-2"></i></a>
-                                                    <?php endif; ?>
-                                                    <?php if ($p['test_file']): ?>
-                                                        <a href="../uploads/<?php echo $p['test_file']; ?>" target="_blank" title="View Test File"><i class="fas fa-file-alt text-info"></i></a>
-                                                    <?php endif; ?>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span class="badge <?php 
-                                                    echo $p['status'] == 'Pending' ? 'bg-warning text-dark' : ($p['status'] == 'In Progress' ? 'bg-primary' : 'bg-success'); 
-                                                ?>">
-                                                    <?php echo $p['status']; ?>
-                                                </span>
-                                            </td>
-                                            <td><small><?php echo $p['next_appointment'] ? date('d M Y', strtotime($p['next_appointment'])) : 'Not Set'; ?></small></td>
+                                            <th>Patient Name</th>
+                                            <th>Doctor</th>
+                                            <th>Status</th>
                                         </tr>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <tr>
-                                        <td colspan="7" class="text-center py-4">No patient records found in the system.</td>
-                                    </tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach (array_slice($patients, 0, 5) as $p): ?>
+                                            <tr>
+                                                <td>
+                                                    <div class="fw-600"><?php echo htmlspecialchars($p['name']); ?></div>
+                                                    <div class="small text-muted"><?php echo $p['patient_id']; ?></div>
+                                                </td>
+                                                <td>
+                                                    <div class="small fw-500"><?php echo htmlspecialchars($p['doctor_name']); ?></div>
+                                                </td>
+                                                <td>
+                                                    <?php 
+                                                    $statusClass = $p['status'] == 'Pending' ? 'badge-pending' : ($p['status'] == 'In Progress' ? 'badge-confirmed' : 'badge-confirmed');
+                                                    ?>
+                                                    <span class="badge <?php echo $statusClass; ?>">
+                                                        <?php echo $p['status']; ?>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Patients Table -->
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0 fw-bold">Recent Patients</h5>
+                            <a href="#" class="btn btn-sm btn-light border small px-3">View All</a>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Age</th>
+                                            <th>Contact</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach (array_slice($patients, 0, 5) as $p): ?>
+                                            <tr>
+                                                <td><div class="fw-600"><?php echo htmlspecialchars($p['name']); ?></div></td>
+                                                <td><?php echo $p['age']; ?></td>
+                                                <td><div class="small text-muted">9876543210</div></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
